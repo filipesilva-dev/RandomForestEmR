@@ -33,9 +33,14 @@ cat("\n==============================\n\n")
 
 print(colSums(is.na(df)))
 
+df <- na.omit(df)
+
 df$target <- as.factor(df$target)
 
-levels(df$target) <- c("Classe0", "Classe1")
+levels(df$target) <- c(
+  "Sem_Ataque",
+  "Com_Ataque"
+)
 
 indices <- createDataPartition(
   df$target,
@@ -111,9 +116,13 @@ precisao <- matriz$byClass["Pos Pred Value"]
 
 recall <- matriz$byClass["Sensitivity"]
 
-f1 <- 2 * (
-  (precisao * recall) /
-    (precisao + recall)
+f1 <- ifelse(
+  (precisao + recall) == 0,
+  0,
+  2 * (
+    (precisao * recall) /
+      (precisao + recall)
+  )
 )
 
 cat("Acurácia :", round(acuracia, 4), "\n")
@@ -130,7 +139,7 @@ importancias <- importance(modelo$finalModel)
 
 grafico_importancia <- data.frame(
   Variavel = rownames(importancias),
-  Importancia = importancias[, 1]
+  Importancia = importancias[, "MeanDecreaseGini"]
 )
 
 grafico_importancia <- grafico_importancia[
@@ -156,22 +165,28 @@ grafico_importancia_plot <- ggplot(
     fill = Importancia
   )
 ) +
+  
   geom_bar(
     stat = "identity",
     width = 0.7
   ) +
+  
   coord_flip() +
+  
   labs(
     title = "Top 10 Variáveis Mais Importantes",
     x = "Variável",
     y = "Importância"
   ) +
+  
   theme_minimal(base_size = 14) +
+  
   theme(
     plot.title = element_text(
       hjust = 0.5,
       face = "bold"
     ),
+    
     legend.position = "none"
   )
 
@@ -191,27 +206,40 @@ dev.off()
 matriz_valores <- as.matrix(matriz$table)
 
 matriz_plot <- data.frame(
-  Real = c("Saudável", "Saudável", "Doente", "Doente"),
-  Previsto = c("Saudável", "Doente", "Saudável", "Doente"),
+  Real = c(
+    "c/ataque",
+    "c/ataque",
+    "s/ataque",
+    "s/ataque"
+  ),
+  
+  Previsto = c(
+    "s/ataque",
+    "c/ataque",
+    "s/ataque",
+    "c/ataque"
+  ),
+  
   Valor = c(
     matriz_valores[1,1],
     matriz_valores[1,2],
     matriz_valores[2,1],
     matriz_valores[2,2]
   ),
+  
   Tipo = c(
     "Verdadeiro Negativo",
     "Falso Positivo",
     "Falso Negativo",
     "Verdadeiro Positivo"
+  ),
+  
+  Cor = c(
+    "Acerto",
+    "Erro",
+    "Erro",
+    "Acerto"
   )
-)
-
-matriz_plot$Cor <- c(
-  "Acerto",
-  "Erro",
-  "Erro",
-  "Acerto"
 )
 
 grafico_matriz <- ggplot(
@@ -222,10 +250,12 @@ grafico_matriz <- ggplot(
     fill = Cor
   )
 ) +
+  
   geom_tile(
     color = "white",
-    linewidth = 1.5
+    linewidth = 2
   ) +
+  
   geom_text(
     aes(
       label = paste0(
@@ -234,37 +264,46 @@ grafico_matriz <- ggplot(
         Valor
       )
     ),
-    size = 6,
+    size = 7,
     fontface = "bold",
     color = "black"
   ) +
+  
   scale_fill_manual(
     values = c(
-      "Acerto" = "#87d987",
-      "Erro" = "#e67f7f"
+      "Acerto" = "#dfeaf7",
+      "Erro" = "#2f73d9"
     )
   ) +
+  
   labs(
-    title = "Matriz de Confusão - Diagnóstico de Doença",
-    x = "Valores Previstos",
-    y = "Valores Reais"
+    title = "Matriz de Confusão",
+    x = "Previsto",
+    y = "Real"
   ) +
-  theme_minimal(base_size = 16) +
+  
+  theme_minimal(base_size = 18) +
+  
   theme(
     plot.title = element_text(
       hjust = 0.5,
       face = "bold",
-      size = 20
+      size = 30
     ),
+    
     axis.title = element_text(
       face = "bold",
-      size = 16
+      size = 22
     ),
+    
     axis.text = element_text(
-      face = "bold",
-      size = 14
+      size = 18
     ),
-    legend.position = "none",
+    
+    legend.position = "bottom",
+    
+    legend.title = element_blank(),
+    
     panel.grid = element_blank()
   )
 
@@ -272,8 +311,8 @@ print(grafico_matriz)
 
 png(
   filename = "matriz_confusao.png",
-  width = 1200,
-  height = 900,
+  width = 1400,
+  height = 1200,
   res = 150
 )
 
@@ -283,8 +322,11 @@ dev.off()
 
 roc_obj <- roc(
   response = test_data$target,
-  predictor = probabilidades$Classe1,
-  levels = c("Classe0", "Classe1")
+  predictor = probabilidades$Com_Ataque,
+  levels = c(
+    "Sem_Ataque",
+    "Com_Ataque"
+  )
 )
 
 auc_valor <- auc(roc_obj)
@@ -307,25 +349,31 @@ grafico_roc <- ggplot(
     y = TPR
   )
 ) +
+  
   geom_line(
     color = "blue",
     linewidth = 1.5
   ) +
+  
   geom_abline(
     slope = 1,
     intercept = 0,
     linetype = "dashed",
     color = "red"
   ) +
+  
   labs(
     title = paste(
       "Curva ROC - AUC =",
       round(auc_valor, 4)
     ),
+    
     x = "Taxa de Falsos Positivos",
     y = "Taxa de Verdadeiros Positivos"
   ) +
+  
   theme_minimal(base_size = 15) +
+  
   theme(
     plot.title = element_text(
       hjust = 0.5,
